@@ -1,0 +1,47 @@
+name: Alertas insider
+
+on:
+  schedule:
+    # 08:00 y 16:30 hora de Madrid (verano e invierno); el filtro de abajo deja pasar solo la hora correcta
+    - cron: "0 6,7 * * 1-5"
+    - cron: "30 14,15 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Ejecutar ahora sin mirar la hora"
+        default: "yes"
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comprobar hora de Madrid
+        id: guard
+        run: |
+          H=$(TZ=Europe/Madrid date +%H)
+          M=$(TZ=Europe/Madrid date +%M)
+          echo "Hora en Madrid: $H:$M"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "go=yes" >> $GITHUB_OUTPUT
+          elif [ "$H" = "08" ] || { [ "$H" = "16" ] && [ "$M" -ge 15 ]; }; then
+            echo "go=yes" >> $GITHUB_OUTPUT
+          else
+            echo "go=no" >> $GITHUB_OUTPUT
+          fi
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.go == 'yes'
+      - uses: actions/setup-python@v5
+        if: steps.guard.outputs.go == 'yes'
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Instalar librerías
+        if: steps.guard.outputs.go == 'yes'
+        run: pip install -r requirements.txt
+      - name: Ejecutar
+        if: steps.guard.outputs.go == 'yes'
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+        run: python insiders.py
