@@ -538,14 +538,22 @@ def company_message(rank, ticker, buys, pts, total, n_ins, info, now_txt):
 
 # ------------------------------------------------------------------- envío
 def send_telegram(text):
-    token = os.environ.get("TELEGRAM_TOKEN")
-    chat = os.environ.get("TELEGRAM_CHAT_ID")
+    token = (os.environ.get("TELEGRAM_TOKEN") or "").strip()
+    chat = (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
     if not token or not chat:
+        print("AVISO TELEGRAM: falta TELEGRAM_TOKEN o TELEGRAM_CHAT_ID (vacío). No se envía.")
         return
     body = html.escape(text[:3500]).replace("\x01", "<b>").replace("\x02", "</b>")
-    requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                  json={"chat_id": chat, "text": body, "parse_mode": "HTML",
-                        "disable_web_page_preview": True}, timeout=30)
+    try:
+        r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
+                          json={"chat_id": chat, "text": body, "parse_mode": "HTML",
+                                "disable_web_page_preview": True}, timeout=30)
+        if r.ok:
+            print("TELEGRAM OK: mensaje enviado")
+        else:
+            print(f"ERROR TELEGRAM {r.status_code}: {r.text[:300]}")
+    except Exception as e:
+        print(f"ERROR TELEGRAM (red): {e.__class__.__name__}: {e}")
 
 
 def emit(text):
